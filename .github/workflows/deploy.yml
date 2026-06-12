@@ -7,34 +7,46 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted  # ប្រើ self-hosted runner
+    runs-on: self-hosted
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
     
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
     - name: Install dependencies
       run: |
-        pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Download YOLO model
+    - name: Download YOLOv8n model
       run: |
         python -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt')"
     
-    - name: Run Flask app
+    - name: Run Flask application
       run: |
-        python app.py &
-      env:
-        FLASK_ENV: production
+        Start-Process python -ArgumentList "app.py" -WindowStyle Hidden
+      shell: pwsh
     
-    - name: Keep app running
+    - name: Wait for app to start
       run: |
-        echo "Application is running on http://localhost:5000"
-        # Keep the process alive
-        wait
+        Start-Sleep -Seconds 5
+        echo "Application started on http://localhost:5000"
+    
+    - name: Keep runner alive
+      run: |
+        echo "Runner is active and waiting for jobs"
+        # This keeps the runner alive
+        while ($true) { Start-Sleep -Seconds 60 }
