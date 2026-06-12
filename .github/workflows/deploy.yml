@@ -1,0 +1,40 @@
+name: Deploy Camera Detection App
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted  # ប្រើ self-hosted runner
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download YOLO model
+      run: |
+        python -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt')"
+    
+    - name: Run Flask app
+      run: |
+        python app.py &
+      env:
+        FLASK_ENV: production
+    
+    - name: Keep app running
+      run: |
+        echo "Application is running on http://localhost:5000"
+        # Keep the process alive
+        wait
