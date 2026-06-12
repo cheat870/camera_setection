@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv8n Camera Detection</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 YOLOv8n Camera Detection</h1>
+            <p>Real-time object detection using YOLOv8n</p>
+        </header>
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-start">▶ Start Camera</button>
+            <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop Camera</button>
+            <div id="modelInfo" class="model-info"></div>
+        </div>
+
+        <div class="video-container">
+            <img id="videoFeed" src="" alt="Camera Feed">
+            <div id="status" class="status"></div>
+        </div>
+
+        <div class="info-panel">
+            <h3>📊 Detection Info</h3>
+            <div id="detectionInfo">Waiting for camera...</div>
+        </div>
+
+        <footer>
+            <p>Powered by YOLOv8n | Real-time Object Detection</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
