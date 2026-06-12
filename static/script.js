@@ -1,11 +1,14 @@
 let streamActive = false;
+let resultInterval = null;
 
 // DOM Elements
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const videoFeed = document.getElementById('videoFeed');
 const statusDiv = document.getElementById('status');
-const detectionInfo = document.getElementById('detectionInfo');
+const liveResults = document.getElementById('liveResults');
+const statisticsDiv = document.getElementById('statistics');
+const refreshBtn = document.getElementById('refreshBtn');
 
 // Load model info on page load
 async function loadModelInfo() {
@@ -22,6 +25,69 @@ async function loadModelInfo() {
     }
 }
 
+// Fetch and display results
+async function fetchResults() {
+    if (!streamActive) return;
+    
+    try {
+        const response = await fetch('/get_results');
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.results) {
+            displayResults(data.results);
+        }
+    } catch (error) {
+        console.error('Error fetching results:', error);
+    }
+}
+
+// Display detection results
+function displayResults(results) {
+    // Display live results
+    if (results.objects && results.objects.length > 0) {
+        liveResults.innerHTML = results.objects.map(obj => `
+            <div class="result-item">
+                <strong>${obj.name}</strong><br>
+                <span class="confidence">Confidence: ${(obj.confidence * 100).toFixed(1)}%</span>
+            </div>
+        `).join('');
+    } else {
+        liveResults.innerHTML = '<div class="loading">No objects detected yet...</div>';
+    }
+    
+    // Display statistics
+    if (results.object_summary && Object.keys(results.object_summary).length > 0) {
+        const totalObjects = results.total_objects;
+        const objectTypes = Object.keys(results.object_summary).length;
+        
+        let statsHtml = `
+            <div class="stat-item">
+                <span class="stat-label">Total Objects:</span>
+                <span class="stat-value">${totalObjects}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Object Types:</span>
+                <span class="stat-value">${objectTypes}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Last Update:</span>
+                <span class="stat-value">${new Date(results.timestamp * 1000).toLocaleTimeString()}</span>
+            </div>
+            <div style="margin-top: 10px;">
+                <strong>Detected Objects:</strong>
+                <ul class="object-list">
+                    ${Object.entries(results.object_summary).map(([name, count]) => `
+                        <li><span>${name}:</span> <strong>${count}</strong></li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+        statisticsDiv.innerHTML = statsHtml;
+    } else {
+        statisticsDiv.innerHTML = '<p>No statistics available yet</p>';
+    }
+}
+
 // Start camera
 async function startCamera() {
     try {
@@ -29,18 +95,19 @@ async function startCamera() {
         const data = await response.json();
         
         if (data.status === 'success') {
-            // Set video feed source
             videoFeed.src = '/video_feed?' + Date.now();
             streamActive = true;
             
-            // Update UI
             startBtn.disabled = true;
             stopBtn.disabled = false;
             statusDiv.className = 'status active';
             statusDiv.textContent = '🟢 Camera Active - Detecting Objects';
-            detectionInfo.innerHTML = '🔍 Camera streaming with YOLOv8n detection...';
+            liveResults.innerHTML = '<div class="loading">Detecting objects...</div>';
             
-            // Add event listener for when feed loads
+            // Start fetching results every second
+            if (resultInterval) clearInterval(resultInterval);
+            resultInterval = setInterval(fetchResults, 1000);
+            
             videoFeed.onload = () => {
                 console.log('Video feed loaded');
             };
@@ -68,12 +135,18 @@ async function stopCamera() {
             videoFeed.src = '';
             streamActive = false;
             
-            // Update UI
+            // Stop fetching results
+            if (resultInterval) {
+                clearInterval(resultInterval);
+                resultInterval = null;
+            }
+            
             startBtn.disabled = false;
             stopBtn.disabled = true;
             statusDiv.className = 'status inactive';
             statusDiv.textContent = '⚫ Camera Stopped';
-            detectionInfo.innerHTML = '💤 Camera is stopped. Click "Start Camera" to begin detection.';
+            liveResults.innerHTML = '<div class="loading">Camera is stopped. Click "Start Camera" to begin.</div>';
+            statisticsDiv.innerHTML = '<p>No data available</p>';
         }
     } catch (error) {
         console.error('Error stopping camera:', error);
@@ -84,27 +157,22 @@ async function stopCamera() {
 function showError(message) {
     statusDiv.className = 'status inactive';
     statusDiv.textContent = '❌ ' + message;
-    detectionInfo.innerHTML = '⚠️ ' + message;
+    liveResults.innerHTML = '<div class="loading">Error: ' + message + '</div>';
     
     setTimeout(() => {
         if (!streamActive) {
             statusDiv.textContent = '⚫ Camera Stopped';
-            detectionInfo.innerHTML = '💤 Camera is stopped. Click "Start Camera" to begin detection.';
+            liveResults.innerHTML = '<div class="loading">Camera is stopped. Click "Start Camera" to begin.</div>';
         }
     }, 3000);
 }
 
-// Update detection info periodically
-setInterval(async () => {
+// Refresh button click
+refreshBtn.addEventListener('click', () => {
     if (streamActive) {
-        // You can add more detailed detection stats here
-        detectionInfo.innerHTML = `
-            🎯 YOLOv8n Detection Active<br>
-            📍 Real-time object detection<br>
-            🟢 Detecting multiple objects simultaneously
-        `;
+        fetchResults();
     }
-}, 2000);
+});
 
 // Event listeners
 startBtn.addEventListener('click', startCamera);

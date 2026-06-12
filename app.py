@@ -5,6 +5,8 @@ import numpy as np
 from ultralytics import YOLO
 import torch
 import logging
+from collections import Counter
+import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,13 +18,20 @@ CORS(app)
 # Load YOLOv8n model
 try:
     model = YOLO('yolov8n.pt')
-    # Use GPU if available
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
     logger.info(f"Model loaded successfully on {device}")
 except Exception as e:
     logger.error(f"Error loading model: {e}")
     model = None
+
+# Store detection results
+detection_results = {
+    'objects': [],
+    'count': 0,
+    'last_update': time.time(),
+    'object_counter': Counter()
+}
 
 class Camera:
     def __init__(self):
@@ -55,12 +64,16 @@ class Camera:
 camera_manager = Camera()
 
 def process_frame(frame):
-    """Process frame with YOLO detection"""
+    """Process frame with YOLO detection and return results"""
+    global detection_results
+    
     if model is None:
-        return frame
+        return frame, []
     
     # Run YOLO detection
     results = model(frame, stream=False)
+    
+    detected_objects = []
     
     # Draw bounding boxes
     for result in results:
@@ -73,18 +86,32 @@ def process_frame(frame):
                 class_id = int(box.cls[0])
                 class_name = model.names[class_id]
                 
+                # Store detected object
+                detected_objects.append({
+                    'name': class_name,
+                    'confidence': confidence,
+                    'bbox': [x1, y1, x2, y2]
+                })
+                
                 # Draw rectangle
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 
-                # Draw label
+                # Draw label with background
                 label = f"{class_name}: {confidence:.2f}"
-                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
                 cv2.rectangle(frame, (x1, y1 - label_size[1] - 10), 
                             (x1 + label_size[0], y1), (0, 255, 0), -1)
                 cv2.putText(frame, label, (x1, y1 - 5), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
     
-    return frame
+    # Update detection results
+    if detected_objects:
+        detection_results['objects'] = detected_objects
+        detection_results['count'] = len(detected_objects)
+        detection_results['last_update'] = time.time()
+        detection_results['object_counter'] = Counter([obj['name'] for obj in detected_objects])
+    
+    return frame, detected_objects
 
 def generate_frames():
     """Generate video frames for streaming"""
@@ -94,7 +121,19 @@ def generate_frames():
             break
             
         # Process frame for detection
-        processed_frame = process_frame(frame)
+        processed_frame, detected_objects = process_frame(frame)
+        
+        # Add detection info overlay on frame
+        if detected_objects:
+            y_offset = 30
+            cv2.putText(processed_frame, f"Detected: {len(detected_objects)} objects", 
+                       (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            y_offset += 25
+            # Show top 3 objects
+            for obj in detected_objects[:3]:
+                cv2.putText(processed_frame, f"- {obj['name']}: {obj['confidence']:.2f}", 
+                           (10, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                y_offset += 20
         
         # Encode frame to JPEG
         ret, buffer = cv2.imencode('.jpg', processed_frame)
@@ -109,26 +148,44 @@ def index():
 
 @app.route('/start_camera')
 def start_camera():
-    """Start camera stream"""
     if camera_manager.start():
         return jsonify({"status": "success", "message": "Camera started"})
     return jsonify({"status": "error", "message": "Could not start camera"})
 
 @app.route('/stop_camera')
 def stop_camera():
-    """Stop camera stream"""
     camera_manager.stop()
+    # Clear results
+    global detection_results
+    detection_results = {
+        'objects': [],
+        'count': 0,
+        'last_update': time.time(),
+        'object_counter': Counter()
+    }
     return jsonify({"status": "success", "message": "Camera stopped"})
 
 @app.route('/video_feed')
 def video_feed():
-    """Video streaming route"""
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route('/get_results')
+def get_results():
+    """API endpoint to get detection results"""
+    global detection_results
+    return jsonify({
+        'status': 'success',
+        'results': {
+            'total_objects': detection_results['count'],
+            'objects': detection_results['objects'][:10],  # Return last 10 objects
+            'object_summary': dict(detection_results['object_counter']),
+            'timestamp': detection_results['last_update']
+        }
+    })
+
 @app.route('/model_info')
 def model_info():
-    """Get model information"""
     if model:
         return jsonify({
             "status": "success",
