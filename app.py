@@ -7,6 +7,7 @@ import torch
 import logging
 from collections import Counter
 import time
+import json
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -14,6 +15,21 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+# Helper function to convert numpy types to Python types
+def convert_to_serializable(obj):
+    """Convert numpy types to Python native types for JSON serialization"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_to_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_serializable(item) for item in obj]
+    return obj
 
 # Load YOLOv8n model
 try:
@@ -80,17 +96,17 @@ def process_frame(frame):
         boxes = result.boxes
         if boxes is not None:
             for box in boxes:
-                # Get coordinates
+                # Get coordinates - convert to Python int
                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
-                confidence = float(box.conf[0])
-                class_id = int(box.cls[0])
+                confidence = float(box.conf[0])  # Convert to float
+                class_id = int(box.cls[0])  # Convert to int
                 class_name = model.names[class_id]
                 
-                # Store detected object
+                # Store detected object with converted types
                 detected_objects.append({
                     'name': class_name,
                     'confidence': confidence,
-                    'bbox': [x1, y1, x2, y2]
+                    'bbox': [int(x1), int(y1), int(x2), int(y2)]  # Ensure int
                 })
                 
                 # Draw rectangle
@@ -172,17 +188,21 @@ def video_feed():
 
 @app.route('/get_results')
 def get_results():
-    """API endpoint to get detection results"""
+    """API endpoint to get detection results with proper JSON serialization"""
     global detection_results
-    return jsonify({
+    
+    # Convert detection results to serializable format
+    serializable_results = {
         'status': 'success',
         'results': {
-            'total_objects': detection_results['count'],
-            'objects': detection_results['objects'][:10],  # Return last 10 objects
-            'object_summary': dict(detection_results['object_counter']),
-            'timestamp': detection_results['last_update']
+            'total_objects': int(detection_results['count']),  # Convert to int
+            'objects': convert_to_serializable(detection_results['objects'][:10]),
+            'object_summary': {k: int(v) for k, v in detection_results['object_counter'].items()},  # Convert counts to int
+            'timestamp': float(detection_results['last_update'])  # Convert to float
         }
-    })
+    }
+    
+    return jsonify(serializable_results)
 
 @app.route('/model_info')
 def model_info():
@@ -191,7 +211,7 @@ def model_info():
             "status": "success",
             "model": "YOLOv8n",
             "device": device,
-            "classes": len(model.names)
+            "classes": int(len(model.names))  # Convert to int
         })
     return jsonify({"status": "error", "message": "Model not loaded"})
 
