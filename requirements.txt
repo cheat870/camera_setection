@@ -1,8 +1,17 @@
-Flask==2.3.3
-Flask-CORS==4.0.0
-opencv-python==4.8.1.78
-numpy==1.24.3
-ultralytics==8.0.207
-torch==2.1.0
-torchvision==0.16.0
-Pillow==10.0.1
+
+# Core detection
+ultralytics==8.2.18
+opencv-python-headless==4.9.0.80
+
+# Pinned numpy to avoid type deprecation errors (np.int, np.float removed in 1.24+)
+numpy==1.23.5
+
+# Supporting libs
+Pillow==10.3.0
+PyYAML==6.0.1
+requests==2.31.0
+tqdm==4.66.2
+matplotlib==3.8.4
+scipy==1.13.0
+torch==2.2.2
+torchvision==0.17.2gunicorn==21.2.0
