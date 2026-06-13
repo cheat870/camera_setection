@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'images/**'
+      - 'videos/**'
       - 'detect.py'
       - 'requirements.txt'
   workflow_dispatch:
@@ -21,11 +22,9 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
@@ -34,16 +33,6 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Verify environment
-        run: |
-          python -c "
-          import numpy as np, cv2
-          from ultralytics import YOLO
-          print(f'numpy: {np.__version__}')
-          print(f'opencv: {cv2.__version__}')
-          print('ultralytics: OK')
-          "
 
       - name: Run detection
         run: |
