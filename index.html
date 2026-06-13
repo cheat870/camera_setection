@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YOLOv8n Cloud Detection - Real-time Object Detection</title>
+    <title>YOLOv8n Cloud Detection - Render.com</title>
     <style>
         * {
             margin: 0;
@@ -44,7 +44,6 @@
             background: #f8f9fa;
             display: flex;
             gap: 15px;
-            align-items: center;
             flex-wrap: wrap;
             justify-content: center;
         }
@@ -135,11 +134,13 @@
         .detection-class {
             font-weight: bold;
             color: #28a745;
+            font-size: 16px;
         }
 
         .detection-confidence {
             font-size: 12px;
             color: #856404;
+            margin-top: 5px;
         }
 
         .stats {
@@ -158,10 +159,11 @@
 
         .api-config input {
             width: 100%;
-            padding: 8px;
-            margin: 5px 0;
+            padding: 10px;
+            margin: 10px 0;
             border: 1px solid #ddd;
             border-radius: 5px;
+            font-family: monospace;
         }
 
         .loading {
@@ -170,12 +172,27 @@
             color: #667eea;
         }
 
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
         footer {
             background: #343a40;
             color: white;
             text-align: center;
             padding: 15px;
             font-size: 14px;
+        }
+
+        a {
+            color: #17a2b8;
+            text-decoration: none;
         }
 
         @media (max-width: 768px) {
@@ -192,7 +209,7 @@
     <div class="container">
         <header>
             <h1>🎯 YOLOv8n Cloud Detection</h1>
-            <p>Real-time object detection using YOLO API on Google Colab</p>
+            <p>Powered by Render.com | 24/7 Free Hosting</p>
         </header>
 
         <div class="controls">
@@ -214,7 +231,9 @@
             <div class="results-section">
                 <div class="detection-results">
                     <h3>📊 Detection Results</h3>
-                    <div id="results"></div>
+                    <div id="results">
+                        <div class="loading">Ready for detection</div>
+                    </div>
                 </div>
 
                 <div class="stats">
@@ -222,22 +241,24 @@
                     <div id="stats">
                         <p>Total detections: <span id="totalCount">0</span></p>
                         <p>Last detection: <span id="lastTime">-</span></p>
+                        <p>API Status: <span id="apiStatus">Checking...</span></p>
                     </div>
                 </div>
 
                 <div class="api-config">
-                    <h3>⚙️ API Configuration</h3>
-                    <input type="text" id="apiUrl" placeholder="Your Colab API URL (ngrok)">
-                    <button id="saveApiBtn" class="btn" style="width:100%; margin-top:5px;">Save API URL</button>
+                    <h3>⚙️ Render.com API Configuration</h3>
+                    <input type="text" id="apiUrl" placeholder="https://yolo8n-api.onrender.com">
+                    <button id="saveApiBtn" class="btn" style="width:100%;">Save API URL</button>
                     <p style="font-size:12px; margin-top:10px;">
-                        <a href="#" id="colabLink">📘 How to get API URL from Google Colab</a>
+                        ✅ Default: https://yolo8n-api.onrender.com<br>
+                        📍 Your API will be ready in 5-10 minutes after deploy
                     </p>
                 </div>
             </div>
         </div>
 
         <footer>
-            <p>Powered by YOLOv8n | Google Colab + Ngrok | GitHub Pages</p>
+            <p>Powered by YOLOv8n | Hosted on Render.com | <a href="https://github.com/cheat870/camera_setection">View Source</a></p>
         </footer>
     </div>
 
@@ -245,7 +266,7 @@
         let stream = null;
         let isActive = false;
         let currentImage = null;
-        let apiUrl = localStorage.getItem('yolo_api_url') || '';
+        let totalDetections = 0;
         
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
@@ -256,20 +277,35 @@
         const resultsDiv = document.getElementById('results');
         const totalCountSpan = document.getElementById('totalCount');
         const lastTimeSpan = document.getElementById('lastTime');
+        const apiStatusSpan = document.getElementById('apiStatus');
         const apiUrlInput = document.getElementById('apiUrl');
         
-        let totalDetections = 0;
+        let apiUrl = localStorage.getItem('render_api_url') || 'https://yolo8n-api.onrender.com';
+        apiUrlInput.value = apiUrl;
         
-        // Load saved API URL
-        if (apiUrl) {
-            apiUrlInput.value = apiUrl;
+        // Check API health
+        async function checkAPI() {
+            try {
+                const response = await fetch(`${apiUrl}/health`);
+                const data = await response.json();
+                if (data.status === 'healthy') {
+                    apiStatusSpan.innerHTML = '<span class="success">✅ Online</span>';
+                    apiStatusSpan.style.color = '#28a745';
+                } else {
+                    apiStatusSpan.innerHTML = '<span class="error">⚠️ Error</span>';
+                }
+            } catch(err) {
+                apiStatusSpan.innerHTML = '<span class="error">❌ Offline</span>';
+                console.log('API not available:', err);
+            }
         }
         
         // Save API URL
         document.getElementById('saveApiBtn').onclick = () => {
             apiUrl = apiUrlInput.value;
-            localStorage.setItem('yolo_api_url', apiUrl);
+            localStorage.setItem('render_api_url', apiUrl);
             alert('API URL saved!');
+            checkAPI();
         };
         
         async function startCamera() {
@@ -282,6 +318,7 @@
                 stopBtn.disabled = false;
                 captureBtn.disabled = false;
                 document.getElementById('status').textContent = '🟢 Active';
+                document.getElementById('status').style.background = 'rgba(40,167,69,0.9)';
                 
             } catch(err) {
                 alert('Cannot access camera: ' + err.message);
@@ -299,6 +336,7 @@
                 captureBtn.disabled = true;
                 detectBtn.disabled = true;
                 document.getElementById('status').textContent = '⚫ Stopped';
+                document.getElementById('status').style.background = 'rgba(0,0,0,0.8)';
             }
         }
         
@@ -316,7 +354,6 @@
             currentImage = canvas.toDataURL('image/jpeg', 0.8);
             detectBtn.disabled = false;
             
-            // Show preview
             resultsDiv.innerHTML = '<div class="loading">✅ Image captured! Click "Detect Objects" to analyze.</div>';
         }
         
@@ -326,13 +363,8 @@
                 return;
             }
             
-            if (!apiUrl) {
-                alert('Please configure API URL first!\n\nGet URL from Google Colab (run the notebook)');
-                return;
-            }
-            
             detectBtn.disabled = true;
-            resultsDiv.innerHTML = '<div class="loading">🔍 Detecting objects with YOLOv8n...</div>';
+            resultsDiv.innerHTML = '<div class="loading">🔍 Detecting objects with YOLOv8n on Render.com...</div>';
             
             try {
                 const response = await fetch(`${apiUrl}/detect`, {
@@ -349,10 +381,10 @@
                     totalCountSpan.textContent = totalDetections;
                     lastTimeSpan.textContent = new Date().toLocaleTimeString();
                 } else {
-                    resultsDiv.innerHTML = `<div class="loading" style="color:red;">❌ Error: ${data.error}</div>`;
+                    resultsDiv.innerHTML = `<div class="loading error">❌ Error: ${data.error}</div>`;
                 }
             } catch(err) {
-                resultsDiv.innerHTML = `<div class="loading" style="color:red;">❌ API Error: ${err.message}<br>Make sure your Colab notebook is running!</div>`;
+                resultsDiv.innerHTML = `<div class="loading error">❌ API Error: ${err.message}<br>Make sure your Render.com app is deployed!</div>`;
             } finally {
                 detectBtn.disabled = false;
             }
@@ -364,7 +396,7 @@
                 return;
             }
             
-            let html = '';
+            let html = `<div class="success">✅ Found ${data.count} object(s) on ${data.device.toUpperCase()}:</div><br>`;
             data.detections.forEach(det => {
                 html += `
                     <div class="detection-item">
@@ -375,10 +407,7 @@
                 `;
             });
             
-            resultsDiv.innerHTML = `
-                <div style="margin-bottom:10px; font-weight:bold;">✅ Found ${data.count} object(s):</div>
-                ${html}
-            `;
+            resultsDiv.innerHTML = html;
         }
         
         startBtn.onclick = startCamera;
@@ -386,10 +415,9 @@
         captureBtn.onclick = captureImage;
         detectBtn.onclick = detectObjects;
         
-        // Colab guide link
-        document.getElementById('colabLink').onclick = () => {
-            alert(`Steps to get API URL:\n1. Run the Google Colab notebook\n2. Copy the public URL (e.g., https://xxxx.ngrok.io)\n3. Paste it in the API URL field\n\nNote: The URL changes every time you restart Colab!`);
-        };
+        // Check API status every 30 seconds
+        checkAPI();
+        setInterval(checkAPI, 30000);
     </script>
 </body>
 </html>
