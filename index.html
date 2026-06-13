@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YOLOv8n Cloud Detection - Render.com</title>
+    <title>YOLOv8n Cloud Detection - Live Demo</title>
     <style>
         * {
             margin: 0;
@@ -39,6 +39,11 @@
             margin-bottom: 10px;
         }
 
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
         .controls {
             padding: 20px;
             background: #f8f9fa;
@@ -62,6 +67,7 @@
         .btn-stop { background: #dc3545; color: white; }
         .btn-detect { background: #667eea; color: white; }
         .btn-capture { background: #17a2b8; color: white; }
+        .btn-clear { background: #6c757d; color: white; }
         
         .btn:hover:not(:disabled) {
             transform: translateY(-2px);
@@ -166,6 +172,29 @@
             font-family: monospace;
         }
 
+        .api-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-online {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-offline {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-checking {
+            background: #ffc107;
+            color: #333;
+        }
+
         .loading {
             text-align: center;
             padding: 20px;
@@ -180,6 +209,41 @@
         .error {
             color: #dc3545;
             font-weight: bold;
+        }
+
+        .captured-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .captured-image {
+            position: relative;
+            display: inline-block;
+        }
+
+        .captured-image img {
+            width: 100px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 12px;
         }
 
         footer {
@@ -202,6 +266,10 @@
             header h1 {
                 font-size: 1.5em;
             }
+            .btn {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -209,7 +277,7 @@
     <div class="container">
         <header>
             <h1>🎯 YOLOv8n Cloud Detection</h1>
-            <p>Powered by Render.com | 24/7 Free Hosting</p>
+            <p>Real-time object detection with YOLOv8n on Render.com | 24/7 Free Cloud API</p>
         </header>
 
         <div class="controls">
@@ -217,6 +285,7 @@
             <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop Camera</button>
             <button id="captureBtn" class="btn btn-capture" disabled>📸 Capture</button>
             <button id="detectBtn" class="btn btn-detect" disabled>🔍 Detect Objects</button>
+            <button id="clearBtn" class="btn btn-clear">🗑 Clear Images</button>
         </div>
 
         <div class="main-content">
@@ -241,24 +310,25 @@
                     <div id="stats">
                         <p>Total detections: <span id="totalCount">0</span></p>
                         <p>Last detection: <span id="lastTime">-</span></p>
-                        <p>API Status: <span id="apiStatus">Checking...</span></p>
+                        <p>API Status: <span id="apiStatus" class="api-status status-checking">Checking...</span></p>
                     </div>
                 </div>
 
                 <div class="api-config">
-                    <h3>⚙️ Render.com API Configuration</h3>
+                    <h3>⚙️ Cloud API Configuration</h3>
                     <input type="text" id="apiUrl" placeholder="https://yolo8n-api.onrender.com">
-                    <button id="saveApiBtn" class="btn" style="width:100%;">Save API URL</button>
+                    <button id="saveApiBtn" class="btn" style="width:100%; background:#667eea;">Save API URL</button>
                     <p style="font-size:12px; margin-top:10px;">
-                        ✅ Default: https://yolo8n-api.onrender.com<br>
-                        📍 Your API will be ready in 5-10 minutes after deploy
+                        ✅ <strong>Your API is live!</strong> https://yolo8n-api.onrender.com<br>
+                        🚀 Powered by Render.com Free Tier<br>
+                        📍 API wakes up after ~15 seconds if inactive
                     </p>
                 </div>
             </div>
         </div>
 
         <footer>
-            <p>Powered by YOLOv8n | Hosted on Render.com | <a href="https://github.com/cheat870/camera_setection">View Source</a></p>
+            <p>Powered by YOLOv8n | Backend: Render.com | Frontend: GitHub Pages | 24/7 Free Cloud Detection</p>
         </footer>
     </div>
 
@@ -266,6 +336,7 @@
         let stream = null;
         let isActive = false;
         let currentImage = null;
+        let images = [];
         let totalDetections = 0;
         
         const video = document.getElementById('video');
@@ -274,11 +345,13 @@
         const stopBtn = document.getElementById('stopBtn');
         const captureBtn = document.getElementById('captureBtn');
         const detectBtn = document.getElementById('detectBtn');
+        const clearBtn = document.getElementById('clearBtn');
         const resultsDiv = document.getElementById('results');
         const totalCountSpan = document.getElementById('totalCount');
         const lastTimeSpan = document.getElementById('lastTime');
         const apiStatusSpan = document.getElementById('apiStatus');
         const apiUrlInput = document.getElementById('apiUrl');
+        const capturedImagesDiv = document.getElementById('capturedImages');
         
         let apiUrl = localStorage.getItem('render_api_url') || 'https://yolo8n-api.onrender.com';
         apiUrlInput.value = apiUrl;
@@ -286,16 +359,22 @@
         // Check API health
         async function checkAPI() {
             try {
+                apiStatusSpan.textContent = 'Checking...';
+                apiStatusSpan.className = 'api-status status-checking';
+                
                 const response = await fetch(`${apiUrl}/health`);
                 const data = await response.json();
+                
                 if (data.status === 'healthy') {
-                    apiStatusSpan.innerHTML = '<span class="success">✅ Online</span>';
-                    apiStatusSpan.style.color = '#28a745';
+                    apiStatusSpan.textContent = '✅ Online';
+                    apiStatusSpan.className = 'api-status status-online';
                 } else {
-                    apiStatusSpan.innerHTML = '<span class="error">⚠️ Error</span>';
+                    apiStatusSpan.textContent = '⚠️ Error';
+                    apiStatusSpan.className = 'api-status status-offline';
                 }
             } catch(err) {
-                apiStatusSpan.innerHTML = '<span class="error">❌ Offline</span>';
+                apiStatusSpan.textContent = '❌ Offline';
+                apiStatusSpan.className = 'api-status status-offline';
                 console.log('API not available:', err);
             }
         }
@@ -304,7 +383,7 @@
         document.getElementById('saveApiBtn').onclick = () => {
             apiUrl = apiUrlInput.value;
             localStorage.setItem('render_api_url', apiUrl);
-            alert('API URL saved!');
+            alert('✅ API URL saved!\n\nMake sure your Render.com service is running.');
             checkAPI();
         };
         
@@ -317,11 +396,12 @@
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 captureBtn.disabled = false;
-                document.getElementById('status').textContent = '🟢 Active';
+                document.getElementById('status').textContent = '🟢 Camera Active';
                 document.getElementById('status').style.background = 'rgba(40,167,69,0.9)';
                 
+                console.log('Camera started');
             } catch(err) {
-                alert('Cannot access camera: ' + err.message);
+                alert('❌ Cannot access camera: ' + err.message);
             }
         }
         
@@ -335,7 +415,7 @@
                 stopBtn.disabled = true;
                 captureBtn.disabled = true;
                 detectBtn.disabled = true;
-                document.getElementById('status').textContent = '⚫ Stopped';
+                document.getElementById('status').textContent = '⚫ Camera Stopped';
                 document.getElementById('status').style.background = 'rgba(0,0,0,0.8)';
             }
         }
@@ -355,6 +435,12 @@
             detectBtn.disabled = false;
             
             resultsDiv.innerHTML = '<div class="loading">✅ Image captured! Click "Detect Objects" to analyze.</div>';
+            
+            // Animation feedback
+            captureBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                captureBtn.style.transform = 'scale(1)';
+            }, 200);
         }
         
         async function detectObjects() {
@@ -364,9 +450,10 @@
             }
             
             detectBtn.disabled = true;
-            resultsDiv.innerHTML = '<div class="loading">🔍 Detecting objects with YOLOv8n on Render.com...</div>';
+            resultsDiv.innerHTML = '<div class="loading">🔍 Sending to YOLOv8n on Render.com...</div>';
             
             try {
+                const startTime = Date.now();
                 const response = await fetch(`${apiUrl}/detect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -374,9 +461,10 @@
                 });
                 
                 const data = await response.json();
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
                 
                 if (data.success) {
-                    displayResults(data);
+                    displayResults(data, duration);
                     totalDetections += data.count;
                     totalCountSpan.textContent = totalDetections;
                     lastTimeSpan.textContent = new Date().toLocaleTimeString();
@@ -384,23 +472,24 @@
                     resultsDiv.innerHTML = `<div class="loading error">❌ Error: ${data.error}</div>`;
                 }
             } catch(err) {
-                resultsDiv.innerHTML = `<div class="loading error">❌ API Error: ${err.message}<br>Make sure your Render.com app is deployed!</div>`;
+                resultsDiv.innerHTML = `<div class="loading error">❌ API Error: ${err.message}<br><br>💡 Make sure your Render.com app is deployed and running:<br>${apiUrl}</div>`;
             } finally {
                 detectBtn.disabled = false;
             }
         }
         
-        function displayResults(data) {
+        function displayResults(data, duration) {
             if (data.count === 0) {
-                resultsDiv.innerHTML = '<div class="loading">No objects detected</div>';
+                resultsDiv.innerHTML = '<div class="loading">No objects detected in this image</div>';
                 return;
             }
             
-            let html = `<div class="success">✅ Found ${data.count} object(s) on ${data.device.toUpperCase()}:</div><br>`;
-            data.detections.forEach(det => {
+            let html = `<div class="success">✅ Found ${data.count} object(s) on ${data.device.toUpperCase()} (${duration}s):</div><br>`;
+            
+            data.detections.forEach((det, idx) => {
                 html += `
                     <div class="detection-item">
-                        <div class="detection-class">${det.class}</div>
+                        <div class="detection-class">${idx + 1}. ${det.class}</div>
                         <div class="detection-confidence">Confidence: ${(det.confidence * 100).toFixed(1)}%</div>
                         <div style="font-size:11px; color:#666;">Position: [${det.bbox[0]}, ${det.bbox[1]}]</div>
                     </div>
@@ -410,14 +499,28 @@
             resultsDiv.innerHTML = html;
         }
         
+        function clearAllImages() {
+            if (images.length > 0 && confirm('Clear all captured images?')) {
+                images = [];
+                displayImages();
+                currentImage = null;
+                detectBtn.disabled = true;
+                resultsDiv.innerHTML = '<div class="loading">Ready for detection</div>';
+            }
+        }
+        
         startBtn.onclick = startCamera;
         stopBtn.onclick = stopCamera;
         captureBtn.onclick = captureImage;
         detectBtn.onclick = detectObjects;
+        clearBtn.onclick = clearAllImages;
         
-        // Check API status every 30 seconds
+        // Check API status on load and every 30 seconds
         checkAPI();
         setInterval(checkAPI, 30000);
+        
+        console.log('YOLOv8n Cloud Detection App Ready!');
+        console.log(`API URL: ${apiUrl}`);
     </script>
 </body>
 </html>
