@@ -1,0 +1,65 @@
+name: Camera Detection
+
+on:
+  push:
+    paths:
+      - 'images/**'
+      - 'detect.py'
+      - 'requirements.txt'
+  workflow_dispatch:
+    inputs:
+      confidence:
+        description: 'Confidence threshold (0.0 - 1.0)'
+        default: '0.25'
+      model:
+        description: 'Model: yolov8n / yolov8s / yolov8m'
+        default: 'yolov8n'
+
+jobs:
+  run-detection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify environment
+        run: |
+          python -c "
+          import numpy as np, cv2
+          from ultralytics import YOLO
+          print(f'numpy: {np.__version__}')
+          print(f'opencv: {cv2.__version__}')
+          print('ultralytics: OK')
+          "
+
+      - name: Run detection
+        run: |
+          python detect.py \
+            --source images/ \
+            --model ${{ github.event.inputs.model || 'yolov8n' }}.pt \
+            --conf ${{ github.event.inputs.confidence || '0.25' }} \
+            --output results/
+
+      - name: Print summary
+        run: cat results/detection_log.txt || echo "No log found"
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: detection-results-${{ github.run_number }}
+          path: results/
+          retention-days: 14
