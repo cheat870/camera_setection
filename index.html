@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Detection - YOLOv8n</title>
+    <title>YOLOv8n Cloud Detection - Real-time Object Detection</title>
     <style>
         * {
             margin: 0;
@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 20px;
@@ -37,11 +37,6 @@
         header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
-        }
-
-        header p {
-            font-size: 1.1em;
-            opacity: 0.9;
         }
 
         .controls {
@@ -64,68 +59,45 @@
             font-weight: bold;
         }
 
-        .btn-start {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-start:hover:not(:disabled) {
-            background: #218838;
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-detect { background: #667eea; color: white; }
+        .btn-capture { background: #17a2b8; color: white; }
+        
+        .btn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
-
-        .btn-stop {
-            background: #dc3545;
-            color: white;
-        }
-
-        .btn-stop:hover:not(:disabled) {
-            background: #c82333;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(220,53,69,0.3);
-        }
-
-        .btn-capture {
-            background: #17a2b8;
-            color: white;
-        }
-
-        .btn-capture:hover:not(:disabled) {
-            background: #138496;
-            transform: translateY(-2px);
-        }
-
-        .btn-clear {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-clear:hover:not(:disabled) {
-            background: #5a6268;
-            transform: translateY(-2px);
-        }
-
+        
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
 
+        .main-content {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .video-section {
+            flex: 2;
+        }
+
+        .results-section {
+            flex: 1;
+        }
+
         .video-container {
             position: relative;
             background: #000;
-            min-height: 480px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            border-radius: 10px;
+            overflow: hidden;
         }
 
         #video {
             width: 100%;
-            max-width: 800px;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            height: auto;
         }
 
         #canvas {
@@ -134,88 +106,68 @@
 
         .status {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 8px 16px;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
             background: rgba(0,0,0,0.8);
             color: white;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: bold;
+            border-radius: 5px;
+            font-size: 12px;
         }
 
-        .status.active {
-            background: rgba(40,167,69,0.9);
-        }
-
-        .status.inactive {
-            background: rgba(220,53,69,0.9);
-        }
-
-        .results-panel {
-            padding: 20px;
+        .detection-results {
             background: #f8f9fa;
-            border-top: 1px solid #dee2e6;
-        }
-
-        .results-panel h3 {
-            margin-bottom: 15px;
-            color: #495057;
-        }
-
-        .captured-images {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-            max-height: 300px;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 400px;
             overflow-y: auto;
         }
 
-        .captured-image {
-            position: relative;
-            display: inline-block;
-        }
-
-        .captured-image img {
-            width: 150px;
+        .detection-item {
+            background: white;
+            padding: 10px;
+            margin-bottom: 10px;
             border-radius: 8px;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            transition: transform 0.2s;
+            border-left: 4px solid #28a745;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        .captured-image img:hover {
-            transform: scale(1.05);
-        }
-
-        .delete-btn {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background: red;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-            font-size: 12px;
+        .detection-class {
             font-weight: bold;
+            color: #28a745;
         }
 
-        .info {
-            background: #e9ecef;
+        .detection-confidence {
+            font-size: 12px;
+            color: #856404;
+        }
+
+        .stats {
+            background: white;
+            border-radius: 10px;
             padding: 15px;
-            border-radius: 8px;
             margin-top: 15px;
         }
 
-        .info code {
-            background: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
+        .api-config {
+            background: #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .api-config input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
         }
 
         footer {
@@ -226,27 +178,12 @@
             font-size: 14px;
         }
 
-        a {
-            color: #17a2b8;
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
         @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
             header h1 {
                 font-size: 1.5em;
-            }
-            
-            .btn {
-                padding: 8px 16px;
-                font-size: 14px;
-            }
-
-            .captured-image img {
-                width: 100px;
             }
         }
     </style>
@@ -254,141 +191,100 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎯 YOLOv8n Camera Detection</h1>
-            <p>Real-time object detection web application</p>
+            <h1>🎯 YOLOv8n Cloud Detection</h1>
+            <p>Real-time object detection using YOLO API on Google Colab</p>
         </header>
 
         <div class="controls">
             <button id="startBtn" class="btn btn-start">▶ Start Camera</button>
             <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop Camera</button>
             <button id="captureBtn" class="btn btn-capture" disabled>📸 Capture</button>
-            <button id="clearBtn" class="btn btn-clear">🗑 Clear All</button>
+            <button id="detectBtn" class="btn btn-detect" disabled>🔍 Detect Objects</button>
         </div>
 
-        <div class="video-container">
-            <video id="video" autoplay playsinline></video>
-            <canvas id="canvas"></canvas>
-            <div id="status" class="status inactive">⚫ Camera Stopped</div>
-        </div>
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas"></canvas>
+                    <div id="status" class="status">⚫ Stopped</div>
+                </div>
+            </div>
 
-        <div class="results-panel">
-            <h3>📸 Captured Images (<span id="imageCount">0</span>)</h3>
-            <div id="capturedImages" class="captured-images"></div>
-            
-            <div class="info">
-                <strong>ℹ️ About this app:</strong><br>
-                • This is a browser-based camera interface hosted on <strong>GitHub Pages</strong><br>
-                • You can capture and save images from your webcam<br>
-                • Images are saved in your browser (localStorage) and persist after refresh<br>
-                • <strong>For full YOLOv8n object detection:</strong> Run the backend server locally:<br>
-                <code>python app.py</code> then visit <code>http://localhost:5000</code>
+            <div class="results-section">
+                <div class="detection-results">
+                    <h3>📊 Detection Results</h3>
+                    <div id="results"></div>
+                </div>
+
+                <div class="stats">
+                    <h3>📈 Statistics</h3>
+                    <div id="stats">
+                        <p>Total detections: <span id="totalCount">0</span></p>
+                        <p>Last detection: <span id="lastTime">-</span></p>
+                    </div>
+                </div>
+
+                <div class="api-config">
+                    <h3>⚙️ API Configuration</h3>
+                    <input type="text" id="apiUrl" placeholder="Your Colab API URL (ngrok)">
+                    <button id="saveApiBtn" class="btn" style="width:100%; margin-top:5px;">Save API URL</button>
+                    <p style="font-size:12px; margin-top:10px;">
+                        <a href="#" id="colabLink">📘 How to get API URL from Google Colab</a>
+                    </p>
+                </div>
             </div>
         </div>
 
         <footer>
-            <p>Powered by YOLOv8n | Hosted on GitHub Pages | <a href="https://github.com/cheat870/camera_setection">View Source on GitHub</a></p>
+            <p>Powered by YOLOv8n | Google Colab + Ngrok | GitHub Pages</p>
         </footer>
     </div>
 
     <script>
         let stream = null;
         let isActive = false;
-        let images = [];
+        let currentImage = null;
+        let apiUrl = localStorage.getItem('yolo_api_url') || '';
         
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const captureBtn = document.getElementById('captureBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const statusDiv = document.getElementById('status');
-        const capturedImagesDiv = document.getElementById('capturedImages');
-        const imageCountSpan = document.getElementById('imageCount');
-
-        // Load saved images from localStorage
-        function loadImages() {
-            const saved = localStorage.getItem('camera_detection_images');
-            if (saved) {
-                images = JSON.parse(saved);
-                displayImages();
-            }
+        const detectBtn = document.getElementById('detectBtn');
+        const resultsDiv = document.getElementById('results');
+        const totalCountSpan = document.getElementById('totalCount');
+        const lastTimeSpan = document.getElementById('lastTime');
+        const apiUrlInput = document.getElementById('apiUrl');
+        
+        let totalDetections = 0;
+        
+        // Load saved API URL
+        if (apiUrl) {
+            apiUrlInput.value = apiUrl;
         }
-
-        // Save images to localStorage
-        function saveImages() {
-            localStorage.setItem('camera_detection_images', JSON.stringify(images));
-            imageCountSpan.textContent = images.length;
-        }
-
-        // Display all captured images
-        function displayImages() {
-            capturedImagesDiv.innerHTML = '';
-            if (images.length === 0) {
-                capturedImagesDiv.innerHTML = '<p style="color: #6c757d;">No captured images yet. Click "Capture" to save images.</p>';
-                return;
-            }
-            
-            images.forEach((imgData, index) => {
-                const div = document.createElement('div');
-                div.className = 'captured-image';
-                
-                const img = document.createElement('img');
-                img.src = imgData;
-                img.onclick = () => window.open(imgData);
-                img.alt = `Captured image ${index + 1}`;
-                
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = '×';
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    deleteImage(index);
-                };
-                
-                div.appendChild(img);
-                div.appendChild(deleteBtn);
-                capturedImagesDiv.appendChild(div);
-            });
-            imageCountSpan.textContent = images.length;
-        }
-
-        // Delete an image
-        function deleteImage(index) {
-            images.splice(index, 1);
-            saveImages();
-            displayImages();
-        }
-
+        
+        // Save API URL
+        document.getElementById('saveApiBtn').onclick = () => {
+            apiUrl = apiUrlInput.value;
+            localStorage.setItem('yolo_api_url', apiUrl);
+            alert('API URL saved!');
+        };
+        
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    } 
-                });
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
                 isActive = true;
                 
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
                 captureBtn.disabled = false;
-                statusDiv.className = 'status active';
-                statusDiv.textContent = '🟢 Camera Active';
+                document.getElementById('status').textContent = '🟢 Active';
                 
-                console.log('Camera started successfully');
             } catch(err) {
-                console.error('Camera error:', err);
-                let errorMsg = 'Cannot access camera. ';
-                if (err.name === 'NotAllowedError') {
-                    errorMsg += 'Please grant permission to use the camera.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMsg += 'No camera found on this device.';
-                } else {
-                    errorMsg += 'Please make sure you have a camera connected.';
-                }
-                alert(errorMsg);
-                statusDiv.textContent = '❌ Camera Error';
+                alert('Cannot access camera: ' + err.message);
             }
         }
         
@@ -401,10 +297,8 @@
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
                 captureBtn.disabled = true;
-                statusDiv.className = 'status inactive';
-                statusDiv.textContent = '⚫ Camera Stopped';
-                
-                console.log('Camera stopped');
+                detectBtn.disabled = true;
+                document.getElementById('status').textContent = '⚫ Stopped';
             }
         }
         
@@ -419,44 +313,83 @@
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Convert to image
-            const imageData = canvas.toDataURL('image/jpeg', 0.8);
-            images.unshift(imageData); // Add to beginning of array
-            saveImages();
-            displayImages();
+            currentImage = canvas.toDataURL('image/jpeg', 0.8);
+            detectBtn.disabled = false;
             
-            // Animation feedback
-            captureBtn.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                captureBtn.style.transform = 'scale(1)';
-            }, 200);
-            
-            // Show success message
-            const originalText = captureBtn.textContent;
-            captureBtn.textContent = '✅ Captured!';
-            setTimeout(() => {
-                captureBtn.textContent = originalText;
-            }, 1000);
+            // Show preview
+            resultsDiv.innerHTML = '<div class="loading">✅ Image captured! Click "Detect Objects" to analyze.</div>';
         }
         
-        function clearAllImages() {
-            if (images.length > 0 && confirm('Are you sure you want to delete all captured images?')) {
-                images = [];
-                saveImages();
-                displayImages();
+        async function detectObjects() {
+            if (!currentImage) {
+                alert('Please capture an image first');
+                return;
+            }
+            
+            if (!apiUrl) {
+                alert('Please configure API URL first!\n\nGet URL from Google Colab (run the notebook)');
+                return;
+            }
+            
+            detectBtn.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading">🔍 Detecting objects with YOLOv8n...</div>';
+            
+            try {
+                const response = await fetch(`${apiUrl}/detect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: currentImage })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data);
+                    totalDetections += data.count;
+                    totalCountSpan.textContent = totalDetections;
+                    lastTimeSpan.textContent = new Date().toLocaleTimeString();
+                } else {
+                    resultsDiv.innerHTML = `<div class="loading" style="color:red;">❌ Error: ${data.error}</div>`;
+                }
+            } catch(err) {
+                resultsDiv.innerHTML = `<div class="loading" style="color:red;">❌ API Error: ${err.message}<br>Make sure your Colab notebook is running!</div>`;
+            } finally {
+                detectBtn.disabled = false;
             }
         }
         
-        // Event listeners
-        startBtn.addEventListener('click', startCamera);
-        stopBtn.addEventListener('click', stopCamera);
-        captureBtn.addEventListener('click', captureImage);
-        clearBtn.addEventListener('click', clearAllImages);
+        function displayResults(data) {
+            if (data.count === 0) {
+                resultsDiv.innerHTML = '<div class="loading">No objects detected</div>';
+                return;
+            }
+            
+            let html = '';
+            data.detections.forEach(det => {
+                html += `
+                    <div class="detection-item">
+                        <div class="detection-class">${det.class}</div>
+                        <div class="detection-confidence">Confidence: ${(det.confidence * 100).toFixed(1)}%</div>
+                        <div style="font-size:11px; color:#666;">Position: [${det.bbox[0]}, ${det.bbox[1]}]</div>
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = `
+                <div style="margin-bottom:10px; font-weight:bold;">✅ Found ${data.count} object(s):</div>
+                ${html}
+            `;
+        }
         
-        // Load saved images on page load
-        loadImages();
+        startBtn.onclick = startCamera;
+        stopBtn.onclick = stopCamera;
+        captureBtn.onclick = captureImage;
+        detectBtn.onclick = detectObjects;
         
-        console.log('GitHub Pages camera app loaded - YOLOv8n Camera Detection');
+        // Colab guide link
+        document.getElementById('colabLink').onclick = () => {
+            alert(`Steps to get API URL:\n1. Run the Google Colab notebook\n2. Copy the public URL (e.g., https://xxxx.ngrok.io)\n3. Paste it in the API URL field\n\nNote: The URL changes every time you restart Colab!`);
+        };
     </script>
 </body>
 </html>
