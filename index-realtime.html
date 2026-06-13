@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv8n Real-time Detection - Live Camera Feed</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        header h1 { font-size: 2em; margin-bottom: 5px; }
+        .realtime-badge {
+            display: inline-block;
+            background: #ff0000;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .controls {
+            padding: 15px;
+            background: #f8f9fa;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-auto { background: #ffc107; color: #333; }
+        .btn-auto-active { background: #28a745; color: white; animation: pulse 1s infinite; }
+        .btn-clear { background: #6c757d; color: white; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .main-content { display: flex; gap: 20px; padding: 20px; }
+        .video-section { flex: 2; }
+        .results-section { flex: 1; }
+        .video-container { position: relative; background: #000; border-radius: 10px; overflow: hidden; }
+        #video { width: 100%; height: auto; }
+        #canvas { display: none; }
+        .status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .detection-results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .detection-item {
+            background: white;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        .detection-class { font-weight: bold; color: #28a745; font-size: 14px; }
+        .detection-confidence { font-size: 11px; color: #856404; margin-top: 3px; }
+        .stats { background: white; border-radius: 10px; padding: 15px; margin-top: 15px; }
+        .api-config { background: #e9ecef; border-radius: 10px; padding: 15px; margin-top: 15px; }
+        .api-config input {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .api-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .status-online { background: #28a745; color: white; }
+        .status-offline { background: #dc3545; color: white; }
+        .status-checking { background: #ffc107; color: #333; }
+        .loading { text-align: center; padding: 20px; color: #667eea; font-size: 14px; }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        footer {
+            background: #343a40;
+            color: white;
+            text-align: center;
+            padding: 12px;
+            font-size: 12px;
+        }
+        @media (max-width: 768px) {
+            .main-content { flex-direction: column; }
+            header h1 { font-size: 1.2em; }
+            .btn { padding: 6px 12px; font-size: 12px; }
+        }
+        .fps-counter {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 YOLOv8n Real-time Detection <span class="realtime-badge">LIVE</span></h1>
+            <p>Automatic object detection every 2 seconds | 24/7 Cloud API</p>
+        </header>
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-start">▶ Start Camera</button>
+            <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop Camera</button>
+            <button id="autoBtn" class="btn btn-auto" disabled>🔄 Auto Detect (OFF)</button>
+            <button id="detectNowBtn" class="btn btn-start" disabled>🔍 Detect Now</button>
+            <button id="clearBtn" class="btn btn-clear">🗑 Clear History</button>
+        </div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas"></canvas>
+                    <div id="status" class="status">⚫ Stopped</div>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <div class="detection-results">
+                    <h3>📊 Latest Detections</h3>
+                    <div id="results">
+                        <div class="loading">Start camera to begin real-time detection</div>
+                    </div>
+                    <div class="fps-counter" id="fpsInfo"></div>
+                </div>
+
+                <div class="stats">
+                    <h3>📈 Statistics</h3>
+                    <div id="stats">
+                        <p>Total detections: <span id="totalCount">0</span></p>
+                        <p>Last detection: <span id="lastTime">-</span></p>
+                        <p>API Status: <span id="apiStatus" class="api-status status-checking">Checking...</span></p>
+                    </div>
+                </div>
+
+                <div class="api-config">
+                    <h3>⚙️ API Configuration</h3>
+                    <input type="text" id="apiUrl" placeholder="https://yolo8n-api.onrender.com" value="https://yolo8n-api.onrender.com">
+                    <button id="saveApiBtn" class="btn" style="width:100%; background:#667eea;">Save & Test</button>
+                    <p style="font-size:11px; margin-top:8px;">
+                        ✅ Real-time detection every 2 seconds<br>
+                        🚀 Powered by Render.com | 24/7 Free
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>YOLOv8n Real-time Detection | Auto-detects objects every 2 seconds | Backend: Render.com</p>
+        </footer>
+    </div>
+
+    <script>
+        let stream = null;
+        let isActive = false;
+        let autoDetect = false;
+        let autoInterval = null;
+        let totalDetections = 0;
+        let lastDetectionTime = null;
+        let detectionHistory = [];
+
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const startBtn = document.getElementById("startBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const autoBtn = document.getElementById("autoBtn");
+        const detectNowBtn = document.getElementById("detectNowBtn");
+        const clearBtn = document.getElementById("clearBtn");
+        const resultsDiv = document.getElementById("results");
+        const totalCountSpan = document.getElementById("totalCount");
+        const lastTimeSpan = document.getElementById("lastTime");
+        const apiStatusSpan = document.getElementById("apiStatus");
+        const apiUrlInput = document.getElementById("apiUrl");
+        const fpsInfo = document.getElementById("fpsInfo");
+
+        let apiUrl = localStorage.getItem("yolo_api_url") || "https://yolo8n-api.onrender.com";
+        apiUrlInput.value = apiUrl;
+
+        let isProcessing = false;
+
+        async function checkAPI() {
+            try {
+                apiStatusSpan.textContent = "Checking...";
+                apiStatusSpan.className = "api-status status-checking";
+                const response = await fetch(`${apiUrl}/health`);
+                if (response.ok) {
+                    apiStatusSpan.textContent = "✅ Online";
+                    apiStatusSpan.className = "api-status status-online";
+                } else {
+                    apiStatusSpan.textContent = "❌ Offline";
+                    apiStatusSpan.className = "api-status status-offline";
+                }
+            } catch(err) {
+                apiStatusSpan.textContent = "❌ Offline";
+                apiStatusSpan.className = "api-status status-offline";
+            }
+        }
+
+        document.getElementById("saveApiBtn").onclick = () => {
+            apiUrl = apiUrlInput.value;
+            localStorage.setItem("yolo_api_url", apiUrl);
+            alert("✅ API URL saved!");
+            checkAPI();
+        };
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+                isActive = true;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                autoBtn.disabled = false;
+                detectNowBtn.disabled = false;
+                document.getElementById("status").textContent = "🟢 Camera Active";
+                document.getElementById("status").style.background = "rgba(40,167,69,0.9)";
+                
+                // Start auto detect if not already
+                if (!autoDetect) {
+                    startAutoDetect();
+                }
+            } catch(err) {
+                alert("❌ Cannot access camera: " + err.message);
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                isActive = false;
+                stopAutoDetect();
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                autoBtn.disabled = true;
+                detectNowBtn.disabled = true;
+                autoBtn.textContent = "🔄 Auto Detect (OFF)";
+                autoBtn.classList.remove("btn-auto-active");
+                autoBtn.classList.add("btn-auto");
+                document.getElementById("status").textContent = "⚫ Camera Stopped";
+                document.getElementById("status").style.background = "rgba(0,0,0,0.8)";
+            }
+        }
+
+        function startAutoDetect() {
+            if (autoInterval) clearInterval(autoInterval);
+            autoDetect = true;
+            autoInterval = setInterval(() => {
+                if (isActive && !isProcessing) {
+                    captureAndDetect();
+                }
+            }, 2000); // Every 2 seconds
+            autoBtn.textContent = "🟢 Auto Detect (ON)";
+            autoBtn.classList.remove("btn-auto");
+            autoBtn.classList.add("btn-auto-active");
+        }
+
+        function stopAutoDetect() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+            autoDetect = false;
+            autoBtn.textContent = "🔄 Auto Detect (OFF)";
+            autoBtn.classList.remove("btn-auto-active");
+            autoBtn.classList.add("btn-auto");
+        }
+
+        function toggleAutoDetect() {
+            if (!isActive) return;
+            if (autoDetect) {
+                stopAutoDetect();
+            } else {
+                startAutoDetect();
+            }
+        }
+
+        async function captureAndDetect() {
+            if (!isActive || !video.videoWidth) return;
+            
+            isProcessing = true;
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext("2d").drawImage(video, 0, 0);
+            const imageData = canvas.toDataURL("image/jpeg", 0.7);
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${apiUrl}/detect`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ image: imageData })
+                });
+                const data = await response.json();
+                const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+                
+                if (data.success && data.count > 0) {
+                    updateResults(data, duration);
+                    totalDetections += data.count;
+                    totalCountSpan.textContent = totalDetections;
+                    lastTimeSpan.textContent = new Date().toLocaleTimeString();
+                }
+                fpsInfo.textContent = `Last detection: ${duration}s | ${new Date().toLocaleTimeString()}`;
+            } catch(err) {
+                console.log("Detection error:", err);
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        async function detectNow() {
+            if (!isActive) {
+                alert("Please start camera first");
+                return;
+            }
+            if (isProcessing) {
+                alert("Please wait, detection in progress...");
+                return;
+            }
+            await captureAndDetect();
+        }
+
+        function updateResults(data, duration) {
+            const timestamp = new Date().toLocaleTimeString();
+            detectionHistory.unshift({
+                time: timestamp,
+                detections: data.detections,
+                count: data.count
+            });
+            
+            if (detectionHistory.length > 10) detectionHistory.pop();
+            
+            let html = `<div class="success">🎯 Last detection (${duration}s):</div><br>`;
+            
+            if (data.count === 0) {
+                html += '<div class="loading">No objects detected</div>';
+            } else {
+                data.detections.forEach((det, idx) => {
+                    html += `
+                        <div class="detection-item">
+                            <div class="detection-class">${idx+1}. ${det.class}</div>
+                            <div class="detection-confidence">${(det.confidence*100).toFixed(1)}% confident</div>
+                        </div>
+                    `;
+                });
+            }
+            
+            html += `<div class="fps-counter" style="margin-top:10px;">🕐 ${timestamp}</div>`;
+            resultsDiv.innerHTML = html;
+        }
+
+        function clearHistory() {
+            if (confirm("Clear detection history?")) {
+                detectionHistory = [];
+                totalDetections = 0;
+                totalCountSpan.textContent = "0";
+                resultsDiv.innerHTML = '<div class="loading">Ready for detection</div>';
+                fpsInfo.textContent = "";
+            }
+        }
+
+        autoBtn.onclick = toggleAutoDetect;
+        startBtn.onclick = startCamera;
+        stopBtn.onclick = stopCamera;
+        detectNowBtn.onclick = detectNow;
+        clearBtn.onclick = clearHistory;
+
+        checkAPI();
+        setInterval(checkAPI, 30000);
+        console.log("YOLOv8n Real-time Detection Ready - Auto detect every 2 seconds!");
+    </script>
+</body>
+</html>
