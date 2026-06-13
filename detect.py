@@ -12,22 +12,49 @@ from ultralytics import YOLO
 def download_demo_image():
     import urllib.request
     os.makedirs("images", exist_ok=True)
-    # Use a reliable public image with no redirects
+    # Use direct stable URLs with no redirects
     urls = [
-        "https://raw.githubusercontent.com/ultralytics/assets/main/im/image8.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cute_dog.jpg/320px-Cute_dog.jpg",
+        "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?w=640",
+        "https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?w=640",
+        "https://farm2.staticflickr.com/1533/26541536141_41abe98db3_z.jpg",
     ]
     for url in urls:
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=15) as r:
-                with open("images/demo.jpg", "wb") as f:
-                    f.write(r.read())
-            print(f"✅ Demo image downloaded from: {url}")
-            return True
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+            })
+            with urllib.request.urlopen(req, timeout=20) as r:
+                data = r.read()
+                if len(data) > 10000:  # must be at least 10KB
+                    with open("images/demo.jpg", "wb") as f:
+                        f.write(data)
+                    print(f"✅ Demo image downloaded ({len(data)//1024}KB)")
+                    return True
+                else:
+                    print(f"⚠️  File too small from {url}")
         except Exception as e:
             print(f"⚠️  Failed {url}: {e}")
-    return False
+
+    # Final fallback: generate a synthetic image with shapes YOLO can detect
+    print("⚠️  All URLs failed — generating synthetic test image...")
+    import cv2
+    os.makedirs("images", exist_ok=True)
+    img = np.zeros((480, 640, 3), dtype=np.uint8)
+    img[:] = (135, 206, 235)  # sky blue background
+
+    # Draw a person-like shape (rectangle = body)
+    cv2.rectangle(img, (280, 150), (360, 400), (200, 150, 100), -1)  # body
+    cv2.circle(img, (320, 120), 40, (200, 150, 100), -1)              # head
+
+    # Draw a car-like shape
+    cv2.rectangle(img, (50, 300), (230, 380), (50, 50, 200), -1)     # car body
+    cv2.rectangle(img, (70, 260), (210, 310), (50, 50, 200), -1)     # roof
+    cv2.circle(img, (90, 385), 20, (30, 30, 30), -1)                 # wheel
+    cv2.circle(img, (190, 385), 20, (30, 30, 30), -1)                # wheel
+
+    cv2.imwrite("images/demo.jpg", img)
+    print("✅ Synthetic test image created")
+    return True
 
 def run_detection(source="images/", model_path="yolov8n.pt", conf=0.25, output_dir="results"):
     print(f"\n{'='*50}")
@@ -44,16 +71,8 @@ def run_detection(source="images/", model_path="yolov8n.pt", conf=0.25, output_d
     )
 
     if not has_images:
-        print("No images found — downloading demo image...")
-        if not download_demo_image():
-            # Last resort: create a blank image
-            import cv2
-            os.makedirs("images", exist_ok=True)
-            img = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(img, "Demo", (250, 240),
-                        cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 3)
-            cv2.imwrite("images/demo.jpg", img)
-            print("✅ Created blank demo image")
+        print("No images found — fetching demo image...")
+        download_demo_image()
         source = "images/"
 
     os.makedirs(output_dir, exist_ok=True)
@@ -87,7 +106,6 @@ def run_detection(source="images/", model_path="yolov8n.pt", conf=0.25, output_d
         "results": all_dets
     }
 
-    os.makedirs(output_dir, exist_ok=True)
     with open(f"{output_dir}/detection_report.json", "w") as f:
         json.dump(report, f, indent=2)
 
