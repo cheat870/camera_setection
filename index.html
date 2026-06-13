@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Detection - GitHub Pages</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn-stop {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-capture {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-capture:hover:not(:disabled) {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            min-height: 480px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .status.active {
+            background: rgba(40,167,69,0.9);
+        }
+
+        .status.inactive {
+            background: rgba(220,53,69,0.9);
+        }
+
+        .results-panel {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .results-panel h3 {
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .captured-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .captured-image {
+            position: relative;
+            display: inline-block;
+        }
+
+        .captured-image img {
+            width: 150px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+
+        .captured-image img:hover {
+            transform: scale(1.05);
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        footer {
+            background: #343a40;
+            color: white;
+            text-align: center;
+            padding: 15px;
+            font-size: 14px;
+        }
+
+        a {
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.5em;
+            }
+            
+            .btn {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Camera Detection</h1>
+            <p>Web-based camera interface - GitHub Pages</p>
+        </header>
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-start">▶ Start Camera</button>
+            <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop Camera</button>
+            <button id="captureBtn" class="btn btn-capture" disabled>📸 Capture Image</button>
+            <button id="clearBtn" class="btn btn-stop">🗑 Clear All</button>
+        </div>
+
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div id="status" class="status inactive">⚫ Camera Stopped</div>
+        </div>
+
+        <div class="results-panel">
+            <h3>📸 Captured Images (<span id="imageCount">0</span>)</h3>
+            <div id="capturedImages" class="captured-images"></div>
+            
+            <div class="info">
+                <strong>ℹ️ About this app:</strong><br>
+                • This is a browser-based camera interface hosted on GitHub Pages<br>
+                • You can capture and save images from your webcam<br>
+                • Images are saved in your browser (localStorage)<br>
+                • For full YOLO object detection, run the backend server locally:<br>
+                <code>python app.py</code> then visit <code>http://localhost:5000</code>
+            </div>
+        </div>
+
+        <footer>
+            <p>Powered by Camera Detection | Hosted on GitHub Pages | <a href="https://github.com/cheat870/camera_setection">View Source</a></p>
+        </footer>
+    </div>
+
+    <script>
+        let stream = null;
+        let isActive = false;
+        let images = [];
+        
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const statusDiv = document.getElementById('status');
+        const capturedImagesDiv = document.getElementById('capturedImages');
+        const imageCountSpan = document.getElementById('imageCount');
+
+        // Load saved images from localStorage
+        function loadImages() {
+            const saved = localStorage.getItem('captured_images');
+            if (saved) {
+                images = JSON.parse(saved);
+                displayImages();
+            }
+        }
+
+        // Save images to localStorage
+        function saveImages() {
+            localStorage.setItem('captured_images', JSON.stringify(images));
+            imageCountSpan.textContent = images.length;
+        }
+
+        // Display all captured images
+        function displayImages() {
+            capturedImagesDiv.innerHTML = '';
+            images.forEach((imgData, index) => {
+                const div = document.createElement('div');
+                div.className = 'captured-image';
+                
+                const img = document.createElement('img');
+                img.src = imgData;
+                img.onclick = () => window.open(imgData);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '×';
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteImage(index);
+                };
+                
+                div.appendChild(img);
+                div.appendChild(deleteBtn);
+                capturedImagesDiv.appendChild(div);
+            });
+            imageCountSpan.textContent = images.length;
+        }
+
+        // Delete an image
+        function deleteImage(index) {
+            images.splice(index, 1);
+            saveImages();
+            displayImages();
+        }
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                video.srcObject = stream;
+                isActive = true;
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                captureBtn.disabled = false;
+                statusDiv.className = 'status active';
+                statusDiv.textContent = '🟢 Camera Active';
+                
+                console.log('Camera started successfully');
+            } catch(err) {
+                console.error('Camera error:', err);
+                alert('Cannot access camera. Please make sure you have granted permission.');
+                statusDiv.textContent = '❌ Camera Access Denied';
+            }
+        }
+        
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                isActive = false;
+                
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                captureBtn.disabled = true;
+                statusDiv.className = 'status inactive';
+                statusDiv.textContent = '⚫ Camera Stopped';
+                
+                console.log('Camera stopped');
+            }
+        }
+        
+        function captureImage() {
+            if (!isActive || !video.videoWidth) {
+                alert('Please start camera first');
+                return;
+            }
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Convert to image
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            images.push(imageData);
+            saveImages();
+            displayImages();
+            
+            // Animation feedback
+            captureBtn.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                captureBtn.style.transform = 'scale(1)';
+            }, 200);
+        }
+        
+        function clearAllImages() {
+            if (images.length > 0 && confirm('Are you sure you want to delete all captured images?')) {
+                images = [];
+                saveImages();
+                displayImages();
+            }
+        }
+        
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+        captureBtn.addEventListener('click', captureImage);
+        clearBtn.addEventListener('click', clearAllImages);
+        
+        // Load saved images on page load
+        loadImages();
+        
+        console.log('GitHub Pages camera app loaded');
+    </script>
+</body>
+</html>
