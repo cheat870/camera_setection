@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Detection - GitHub Pages</title>
+    <title>Camera Detection - YOLOv8n</title>
     <style>
         * {
             margin: 0;
@@ -39,6 +39,11 @@
             margin-bottom: 10px;
         }
 
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
         .controls {
             padding: 20px;
             background: #f8f9fa;
@@ -67,6 +72,7 @@
         .btn-start:hover:not(:disabled) {
             background: #218838;
             transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
         }
 
         .btn-stop {
@@ -77,6 +83,7 @@
         .btn-stop:hover:not(:disabled) {
             background: #c82333;
             transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220,53,69,0.3);
         }
 
         .btn-capture {
@@ -86,6 +93,16 @@
 
         .btn-capture:hover:not(:disabled) {
             background: #138496;
+            transform: translateY(-2px);
+        }
+
+        .btn-clear {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-clear:hover:not(:disabled) {
+            background: #5a6268;
             transform: translateY(-2px);
         }
 
@@ -151,6 +168,8 @@
             flex-wrap: wrap;
             gap: 10px;
             margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .captured-image {
@@ -192,6 +211,13 @@
             margin-top: 15px;
         }
 
+        .info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
         footer {
             background: #343a40;
             color: white;
@@ -201,7 +227,12 @@
         }
 
         a {
-            color: white;
+            color: #17a2b8;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
         }
 
         @media (max-width: 768px) {
@@ -213,21 +244,25 @@
                 padding: 8px 16px;
                 font-size: 14px;
             }
+
+            .captured-image img {
+                width: 100px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🎯 Camera Detection</h1>
-            <p>Web-based camera interface - GitHub Pages</p>
+            <h1>🎯 YOLOv8n Camera Detection</h1>
+            <p>Real-time object detection web application</p>
         </header>
 
         <div class="controls">
             <button id="startBtn" class="btn btn-start">▶ Start Camera</button>
             <button id="stopBtn" class="btn btn-stop" disabled>⏹ Stop Camera</button>
-            <button id="captureBtn" class="btn btn-capture" disabled>📸 Capture Image</button>
-            <button id="clearBtn" class="btn btn-stop">🗑 Clear All</button>
+            <button id="captureBtn" class="btn btn-capture" disabled>📸 Capture</button>
+            <button id="clearBtn" class="btn btn-clear">🗑 Clear All</button>
         </div>
 
         <div class="video-container">
@@ -242,16 +277,16 @@
             
             <div class="info">
                 <strong>ℹ️ About this app:</strong><br>
-                • This is a browser-based camera interface hosted on GitHub Pages<br>
+                • This is a browser-based camera interface hosted on <strong>GitHub Pages</strong><br>
                 • You can capture and save images from your webcam<br>
-                • Images are saved in your browser (localStorage)<br>
-                • For full YOLO object detection, run the backend server locally:<br>
+                • Images are saved in your browser (localStorage) and persist after refresh<br>
+                • <strong>For full YOLOv8n object detection:</strong> Run the backend server locally:<br>
                 <code>python app.py</code> then visit <code>http://localhost:5000</code>
             </div>
         </div>
 
         <footer>
-            <p>Powered by Camera Detection | Hosted on GitHub Pages | <a href="https://github.com/cheat870/camera_setection">View Source</a></p>
+            <p>Powered by YOLOv8n | Hosted on GitHub Pages | <a href="https://github.com/cheat870/camera_setection">View Source on GitHub</a></p>
         </footer>
     </div>
 
@@ -272,7 +307,7 @@
 
         // Load saved images from localStorage
         function loadImages() {
-            const saved = localStorage.getItem('captured_images');
+            const saved = localStorage.getItem('camera_detection_images');
             if (saved) {
                 images = JSON.parse(saved);
                 displayImages();
@@ -281,13 +316,18 @@
 
         // Save images to localStorage
         function saveImages() {
-            localStorage.setItem('captured_images', JSON.stringify(images));
+            localStorage.setItem('camera_detection_images', JSON.stringify(images));
             imageCountSpan.textContent = images.length;
         }
 
         // Display all captured images
         function displayImages() {
             capturedImagesDiv.innerHTML = '';
+            if (images.length === 0) {
+                capturedImagesDiv.innerHTML = '<p style="color: #6c757d;">No captured images yet. Click "Capture" to save images.</p>';
+                return;
+            }
+            
             images.forEach((imgData, index) => {
                 const div = document.createElement('div');
                 div.className = 'captured-image';
@@ -295,6 +335,7 @@
                 const img = document.createElement('img');
                 img.src = imgData;
                 img.onclick = () => window.open(imgData);
+                img.alt = `Captured image ${index + 1}`;
                 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = '×';
@@ -338,8 +379,16 @@
                 console.log('Camera started successfully');
             } catch(err) {
                 console.error('Camera error:', err);
-                alert('Cannot access camera. Please make sure you have granted permission.');
-                statusDiv.textContent = '❌ Camera Access Denied';
+                let errorMsg = 'Cannot access camera. ';
+                if (err.name === 'NotAllowedError') {
+                    errorMsg += 'Please grant permission to use the camera.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg += 'No camera found on this device.';
+                } else {
+                    errorMsg += 'Please make sure you have a camera connected.';
+                }
+                alert(errorMsg);
+                statusDiv.textContent = '❌ Camera Error';
             }
         }
         
@@ -372,7 +421,7 @@
             
             // Convert to image
             const imageData = canvas.toDataURL('image/jpeg', 0.8);
-            images.push(imageData);
+            images.unshift(imageData); // Add to beginning of array
             saveImages();
             displayImages();
             
@@ -381,6 +430,13 @@
             setTimeout(() => {
                 captureBtn.style.transform = 'scale(1)';
             }, 200);
+            
+            // Show success message
+            const originalText = captureBtn.textContent;
+            captureBtn.textContent = '✅ Captured!';
+            setTimeout(() => {
+                captureBtn.textContent = originalText;
+            }, 1000);
         }
         
         function clearAllImages() {
@@ -400,7 +456,7 @@
         // Load saved images on page load
         loadImages();
         
-        console.log('GitHub Pages camera app loaded');
+        console.log('GitHub Pages camera app loaded - YOLOv8n Camera Detection');
     </script>
 </body>
 </html>
